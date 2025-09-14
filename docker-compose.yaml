@@ -1,0 +1,17 @@
+﻿services:
+  api-a:
+    build: .
+    image: tfu2-api:demo
+    environment:
+      - INSTANCE_ID=api-A
+    ports:
+      - "8000:8000"
+    restart: unless-stopped
+
+  api-b:
+    image: tfu2-api:demo
+    environment:
+      - INSTANCE_ID=api-B
+    ports:
+      - "8001:8000"
+    restart: unless-stopped
