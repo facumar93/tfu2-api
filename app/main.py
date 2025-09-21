@@ -1,5 +1,5 @@
 # ============================================
-# TFU2 — Demo de Tácticas (FastAPI)
+# TFU2 — Demo de Tácticas (FastAPI) - GRUPO 6
 #
 # TÁCTICAS QUE SE DEMUESTRAN:
 # - Disponibilidad: Replicación  → /whoami (dos procesos/puertos)
@@ -26,6 +26,9 @@ RATE_LIMIT_WINDOW_SECONDS = 10     # duración de la ventana (segundos)
 
 _rate_counters = {}  # dict[ip] = {"count": int, "window_start": float}
 
+# -------------------------
+# MIDDLEWARE (Limitar Accesos)
+# -------------------------
 @app.middleware("http")
 async def rate_limit(request: Request, call_next):
     client_ip = request.client.host or "unknown"
@@ -54,7 +57,7 @@ async def rate_limit(request: Request, call_next):
 
 
 # -------------------------
-# MIDDLEWARE (control global)
+# MIDDLEWARE (Validar Entrada)
 # -------------------------
 @app.middleware("http")
 async def reject_get_with_body(request: Request, call_next):
@@ -191,37 +194,44 @@ def run_with_retry(op, max_attempts: int = 4, backoff_ms: int = 100):
 # ---------------------------------
 # NOTAS DE USO (para la demo rápida)
 # ---------------------------------
+# ⚠️ PowerShell: usar siempre `curl.exe`. Poner comillas si la URL tiene ?, & o =.
+#
 # 1) Replicación (dos procesos):
 #    [SIN DOCKER]
 #      uvicorn main:app --host 127.0.0.1 --port 8000
 #      uvicorn main:app --host 127.0.0.1 --port 8001
-#      curl.exe -i "http://127.0.0.1:8000/whoami"
-#      curl.exe -i "http://127.0.0.1:8001/whoami"
+#      curl.exe -i http://127.0.0.1:8000/whoami
+#      curl.exe -i http://127.0.0.1:8001/whoami
 #
 #    [CON DOCKER - docker run]
 #      docker run --rm -p 8000:8000 -e INSTANCE_ID=api-A tfu2-api:demo
 #      docker run --rm -p 8001:8000 -e INSTANCE_ID=api-B tfu2-api:demo
-#      curl.exe -i "http://127.0.0.1:8000/whoami"
-#      curl.exe -i "http://127.0.0.1:8001/whoami"
+#      curl.exe -i http://127.0.0.1:8000/whoami
+#      curl.exe -i http://127.0.0.1:8001/whoami
 #
 #    [CON DOCKER - docker compose]
 #      docker compose up -d --build
-#      curl.exe -i "http://127.0.0.1:8000/whoami"
-#      curl.exe -i "http://127.0.0.1:8001/whoami"
+#      curl.exe -i http://127.0.0.1:8000/whoami
+#      curl.exe -i http://127.0.0.1:8001/whoami
 #      docker compose down
 #
 # 2) Reintentos integrados (en /users):
-#    Normal:   curl.exe -i "http://127.0.0.1:8000/users?role=user"
-#    Con demo: curl.exe -i "http://127.0.0.1:8000/users?role=user&attempts=true"
-#              → meta.attempts: 4 (falló 3 y levantó en el 4º)
-#    Forzar fallo tras reintentos:
-#              curl.exe -i "http://127.0.0.1:8000/users?role=user&attempts=true&max_attempts=3"
-#              → 503 (no llegó al intento 4)
+#    Normal:
+#      curl.exe -i "http://127.0.0.1:8000/users?role=user"
+#    Con demo (simula 3 fallos, responde en el 4º → meta.attempts ≈ 4):
+#      curl.exe -i "http://127.0.0.1:8000/users?role=user&attempts=true"
+#    Forzar fallo tras reintentos (→ 503):
+#      curl.exe -i "http://127.0.0.1:8000/users?role=user&attempts=true&max_attempts=3"
 #
 # 3) Reintentos aislados (harness):
-#    curl.exe -i "http://127.0.0.1:8000/retry"
-#    curl.exe -i "http://127.0.0.1:8000/retry?max_attempts=3"  → 503
+#      curl.exe -i http://127.0.0.1:8000/retry
+#      curl.exe -i "http://127.0.0.1:8000/retry?max_attempts=3"   # → 503
 #
-# 4) Seguridad (validación global GET con body):
-#    curl.exe -i -X GET -H "Content-Type: application/json" --data "{}" "http://127.0.0.1:8000/health"
-#    → 400
+# 4) Seguridad — Validación global (GET con body ⇒ 400):
+#      curl.exe -i -X GET -H "Content-Type: application/json" --data '{"ping":"pong"}' "http://127.0.0.1:8000/health"
+#      # Respuesta esperada: 400 {"detail":"GET must not have a body"}
+#
+# 5) Seguridad — Rate limiting (10 req / 10 s por IP ⇒ 429):
+#      Modo manual (hacé ↑ + Enter rápido ~11 veces):
+#      curl.exe -i http://127.0.0.1:8000/health
+#      (sirve igual con /users)
